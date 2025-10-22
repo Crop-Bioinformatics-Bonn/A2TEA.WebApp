@@ -549,10 +549,12 @@ server <- function(input, output, session) {
 
         # assigning hypothesis specific species tree
         p <- all_speciesTree()
-        p <- ggtree::ggtree(p, aes(color = "#F39C12", show.legend = FALSE)) +
+        p <- ggtree::ggtree(p, color = "black", show.legend = FALSE) +
           ggtree::hexpand(input$species_tree_hexpand, direction = 1) +
           ggtree::hexpand(input$species_tree_hexpand, direction = -1) +
           ggtree::geom_tiplab(color = "#428bca", show.legend = FALSE) +
+          coord_cartesian(clip="off")+
+          ggtree::geom_treescale(x=2, y=0.5, width=0.5, color='black', offset = 0.05)+
           theme(plot.margin=margin(6, 120, 6, 6),
                 legend.position = "none")
 
@@ -560,10 +562,12 @@ server <- function(input, output, session) {
 
         # assigning hypothesis specific species tree
         p <- HYPOTHESES.a2tea()[[hypotheses_tsv()$hypothesis[hypotheses_tsv()$name==input$select_Hypothesis_server]]]@species_tree
-        p <- ggtree::ggtree(p, aes(color = "#F39C12", show.legend = FALSE)) +
+        p <- ggtree::ggtree(p, color = "black", show.legend = FALSE) +
           ggtree::hexpand(input$species_tree_hexpand, direction = 1) +
           ggtree::hexpand(input$species_tree_hexpand, direction = -1) +
           ggtree::geom_tiplab(color = "#428bca", show.legend = FALSE) +
+          coord_cartesian(clip="off")+
+          ggtree::geom_treescale(x=2, y=0.5, width=0.5, color='black', offset = 0.05)+
           theme(plot.margin=margin(6, 120, 6, 6),
                 legend.position = "none")
       }
