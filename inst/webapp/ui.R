@@ -286,20 +286,16 @@ A2TEA_footer <- fluidRow(
          "A2TEA is developed by ",
          tags$a(href = "https://github.com/tgstoecker", "Tyll Stöcker,",
                 target = "_blank"),
-         " Carolin Uebermuth, Florian Boecker & Heiko Schoof in the Crop Bioinformatics group of the ",
+         tags$a(href = "https://github.com/caroue", "Carolin Uebermuth-Feldhaus,",
+                target = "_blank"),
+         " Florian Boecker & Heiko Schoof in the Crop Bioinformatics group of the ",
          tags$a(href = "https://www.inres.uni-bonn.de/en", "INRES",
                 target = "_blank"),
-         "- Institute of Crop Science and Resource Conservation", br(),
+         " - Institute of Crop Science and Resource Conservation", br(),
          "License: ", tags$a(href = "https://opensource.org/licenses/MIT", "MIT",
                              target = "_blank",),
-         "- The ",
-         tags$a(href = "https://github.com/tgstoecker", "A2TEA workflow",
-                target = "_blank"),
-         " & ",
-         tags$a(href = "https://github.com/tgstoecker", "A2TEA WebApp",
-                target = "_blank"),
-         "are developed & available on ",
-         tags$a(href = "https://github.com/tgstoecker", "GitHub",
+         " - The A2TEA workflow & A2TEA WebApp are developed & available on ",
+         tags$a(href = "https://https://github.com/groupschoof/", "GitHub",
                 target = "_blank")
   )
 )
@@ -430,7 +426,7 @@ body <- dashboardBody(
 
             # row 2
             fluidRow(
-              column(width = 7,
+              column(width = 5,
                      shinyjs::hidden(
                        div(id = "id_func_anno_table_outer",
                            box(
@@ -451,7 +447,7 @@ body <- dashboardBody(
                            )
                        ))
               ),
-              column(width = 5,
+              column(width = 7,
                      shinyjs::hidden(
                        div(id = "id_hypothesis_conservation_outer",
                            box(
@@ -471,7 +467,7 @@ body <- dashboardBody(
                                startOpen = FALSE,
                                id = "conservation_plot_sidebar",
                                uiOutput('select_hypothesis_conservation_plot'),
-                               numericInput(inputId = "hypothesis_conservation_plot_height", "Plot Height", value = 600),
+                               numericInput(inputId = "hypothesis_conservation_plot_width", "Plot Width", value = 900),
                                uiOutput('hypothesis_conservation_venn_hexpand_slider'),
                                selectInput(inputId = "conservation_plot_export_choice",
                                            label = "Export format",
@@ -780,6 +776,7 @@ body <- dashboardBody(
                                                        # conserved OGs based on ALL species sets but hypothesis filter
                                                        "conserved OGs; hypothesis; EXPANDED",
                                                        "conserved OGs; hypothesis; # DEGs from ANY species",
+                                                       "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment",
                                                        "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species",
                                                        "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species",
                                                        "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species",
@@ -815,6 +812,7 @@ body <- dashboardBody(
                                                        # conserved OGs based on ALL species sets but hypothesis filter
                                                        "conserved OGs; hypothesis; EXPANDED",
                                                        "conserved OGs; hypothesis; # DEGs from ANY species",
+                                                       "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment",
                                                        "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species",
                                                        "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species",
                                                        "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species",
@@ -850,6 +848,7 @@ body <- dashboardBody(
                                                        # conserved OGs based on ALL species sets but hypothesis filter
                                                        "conserved OGs; hypothesis; EXPANDED",
                                                        "conserved OGs; hypothesis; # DEGs from ANY species",
+                                                       "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment",
                                                        "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species",
                                                        "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species",
                                                        "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species",
@@ -885,6 +884,7 @@ body <- dashboardBody(
                                                        # conserved OGs based on ALL species sets but hypothesis filter
                                                        "conserved OGs; hypothesis; EXPANDED",
                                                        "conserved OGs; hypothesis; # DEGs from ANY species",
+                                                       "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment",
                                                        "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species",
                                                        "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species",
                                                        "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species",
@@ -1014,6 +1014,7 @@ body <- dashboardBody(
                                                               # conserved OGs based on ALL species sets but hypothesis filter
                                                               "conserved OGs; hypothesis; EXPANDED",
                                                               "conserved OGs; hypothesis; # DEGs from ANY species",
+                                                              "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment",
                                                               "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species",
                                                               "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species",
                                                               "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species",
@@ -1049,6 +1050,7 @@ body <- dashboardBody(
                                                               # conserved OGs based on ALL species sets but hypothesis filter
                                                               "conserved OGs; hypothesis; EXPANDED",
                                                               "conserved OGs; hypothesis; # DEGs from ANY species",
+                                                              "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment",
                                                               "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species",
                                                               "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species",
                                                               "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species",
@@ -1105,7 +1107,7 @@ body <- dashboardBody(
             )
     ),
     tabItem(tabName = "go_term_analyses",
-            h2("Gene ontology term - enrichment analysis"),
+            h2("Gene ontology term - enrichment analysis (background = HOGs conserved between all species in the study)"),
 
             fluidRow(
               column(width = 4,
@@ -1124,14 +1126,15 @@ body <- dashboardBody(
                              #needs server side rendering since I don't know how many hypotheses are in the experiment...
                              selectInput(inputId = "go_expansion_choice",
                                          label = "Expansion",
-                                         choices = c('yes', 'no'),
+                                         choices = c('yes', 'no and yes'),
                                          selected = "yes"),
                              selectInput(inputId = "go_deg_choice",
                                          label = "DEG criterium",
                                          choices = c("none",
                                                      "at least # DEGs in any hypothesis species",
                                                      "at least # DEGs in ANY expanded species",
-                                                     "at least # DEGs in ALL expanded species"),
+                                                     "at least # DEGs in ALL expanded species",
+                                                     "at least # DEGs in ANY species in experiment"),
                                          selected = "none"),
                              sliderInput(inputId = "go_n_deg_choice",
                                          label = "Minimum # DEGs for DEG criterium",
@@ -1146,7 +1149,7 @@ body <- dashboardBody(
                              sliderInput(inputId = "go_top_n_nodes_choice",
                                          label = "Top # of Nodes",
                                          min = 1,
-                                         max = 100,
+                                         max = 200,
                                          step = 1,
                                          value = 33),
                              sliderInput(inputId = "go_sig_filter_choice",
