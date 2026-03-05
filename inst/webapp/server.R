@@ -173,7 +173,7 @@ server <- function(input, output, session) {
     load(get_file_or_default()$datapath, envir = t)
     get("HOG_level_list", envir=t)
   })
-  # List of HOGs
+  # List of HOGs with functional annotation
   SFA <- eventReactive(get_file_or_default(), {
     t = new.env()
     load(get_file_or_default()$datapath, envir = t)
@@ -335,8 +335,7 @@ server <- function(input, output, session) {
   # General (start) page
   ########################
 
-
-  #reactive DEG table
+   #reactive DEG table
   res_deg_df  <- reactive({
     res_deg_df <- HOG_DE.a2tea() %>%
       #get rid of NAs since this will clash with datatable JS
@@ -549,10 +548,12 @@ server <- function(input, output, session) {
 
         # assigning hypothesis specific species tree
         p <- all_speciesTree()
-        p <- ggtree::ggtree(p, aes(color = "#F39C12", show.legend = FALSE)) +
+        p <- ggtree::ggtree(p, color = "black", show.legend = FALSE) +
           ggtree::hexpand(input$species_tree_hexpand, direction = 1) +
           ggtree::hexpand(input$species_tree_hexpand, direction = -1) +
           ggtree::geom_tiplab(color = "#428bca", show.legend = FALSE) +
+          coord_cartesian(clip="off")+
+          ggtree::geom_treescale(x=2, y=0.5, width=0.5, color='black', offset = 0.05)+
           theme(plot.margin=margin(6, 120, 6, 6),
                 legend.position = "none")
 
@@ -560,10 +561,12 @@ server <- function(input, output, session) {
 
         # assigning hypothesis specific species tree
         p <- HYPOTHESES.a2tea()[[hypotheses_tsv()$hypothesis[hypotheses_tsv()$name==input$select_Hypothesis_server]]]@species_tree
-        p <- ggtree::ggtree(p, aes(color = "#F39C12", show.legend = FALSE)) +
+        p <- ggtree::ggtree(p, color = "black", show.legend = FALSE) +
           ggtree::hexpand(input$species_tree_hexpand, direction = 1) +
           ggtree::hexpand(input$species_tree_hexpand, direction = -1) +
           ggtree::geom_tiplab(color = "#428bca", show.legend = FALSE) +
+          coord_cartesian(clip="off")+
+          ggtree::geom_treescale(x=2, y=0.5, width=0.5, color='black', offset = 0.05)+
           theme(plot.margin=margin(6, 120, 6, 6),
                 legend.position = "none")
       }
@@ -651,8 +654,8 @@ server <- function(input, output, session) {
   #create conservation plot
   output$hypothesis_conservation_plot <- renderPlot(
 
-    height = function() input$hypothesis_conservation_plot_height,
-    #    width = function() input$hypothesis_conservation_plot_width,
+    #height = function() input$hypothesis_conservation_plot_height,
+     width = function() input$hypothesis_conservation_plot_width,
     {
       req(input$select_Hypothesis_server)
       req(input$hypothesis_OGs_conservation_vis_choice)
@@ -743,8 +746,21 @@ server <- function(input, output, session) {
     return(species_num)
   })
 
-  #num of expanded OGs can easily be computed by length of input choices in tree analysis
+  # num of expanded OGs can easily be computed by length of input choices in tree analysis
+  
+  # but to get the ones which are conserved in all species in the experiment, subset by conserved_OGs
+  conserved_OGs <- reactive({
+    conserved_OGs <- HOG_level_list()$all_species_overview %>%
+      #at least 1 gene from every species thus "conserved"
+      filter_at(vars(c(ends_with("_total"))), all_vars(. > 0)) %>%
+      pull(HOG) %>%
+      unique() %>%
+      as.list()
+    
+    return(conserved_OGs)
+  })
 
+   
   #number of DEGs for all species part of a hypothesis
   species_degs_num <- reactive({
     req(input$select_Hypothesis_server)
@@ -777,9 +793,10 @@ server <- function(input, output, session) {
     )
 
     fluidRow(
-      column(width = 6,
+      column(width = 4,
              valueBoxOutput("general_infobox", width = 12),
              valueBoxOutput("general_infobox2", width = 12),
+             valueBoxOutput("general_infobox2_2", width = 12),
              valueBoxOutput("general_infobox3", width = 12)
       ),
       column(width=6,
@@ -809,7 +826,7 @@ server <- function(input, output, session) {
     req(species_num())
 
     infoBox(icon = icon("chart-column", lib = "font-awesome"),
-            width = 6,
+            width = 4,
             title = "# Species in hypothesis",
             value = paste0(species_num()),
             fill = TRUE
@@ -821,9 +838,22 @@ server <- function(input, output, session) {
     req(hypothesisExpOGs())
 
     infoBox(icon = icon("project-diagram"),
-            width = 6,
-            title = "# of Orthologous Groups passing expansion criteria",
+            width = 4,
+            title = "# of expanded HOGs",
             value = paste(length(hypothesisExpOGs())),
+            fill = TRUE
+    )
+  })
+  
+  output$general_infobox2_2 <- renderInfoBox({
+    req(input$select_Hypothesis_server)
+    req(hypothesisExpOGs())
+    req(conserved_OGs())
+    
+    infoBox(icon = icon("project-diagram"),
+            width = 4,
+            title = "# of expanded HOGs\nconserved in all species in experiment",
+            value = paste(length(intersect(hypothesisExpOGs(), conserved_OGs()))),
             fill = TRUE
     )
   })
@@ -833,8 +863,8 @@ server <- function(input, output, session) {
     req(species_degs_num())
 
     infoBox(icon = icon("chart-pie"),
-            width = 6,
-            title = "# Differentially expressed genes/transcripts",
+            width = 4,
+            title = "# Differentially expressed genes",
             value = paste(species_degs_num()),
             fill = TRUE
     )
@@ -1071,8 +1101,22 @@ server <- function(input, output, session) {
     req(input$log2FC_layer == TRUE)
 
     sliderInput(inputId = "tea_log2FC_offset_choice",
-                label = "log2FC - Offset",
+                label = "log2FC offset",
                 value = 0.8,
+                min = 0,
+                step = 0.05,
+                max = 5
+    )
+  })
+  
+  output$tea_basemean_offset_options <- renderUI({
+    req(input$select_Hypothesis_server)
+    req(input$select_HOG_server)
+    req(input$baseMean_layer == TRUE)
+    
+    sliderInput(inputId = "tea_baseMean_offset_choice",
+                label = "basemn offset",
+                value = 0.1,
                 min = 0,
                 step = 0.05,
                 max = 5
@@ -1086,7 +1130,21 @@ server <- function(input, output, session) {
     req(input$log2FC_layer == TRUE)
 
     sliderInput(inputId = "tea_log2FC_pwidth_choice",
-                label = "log2FC - layer width",
+                label = "log2FC width",
+                value = 0.2,
+                min = 0.1,
+                step = 0.1,
+                max = 5
+    )
+  })
+  
+  output$tea_basemean_pwidth_options <- renderUI({
+    req(input$select_Hypothesis_server)
+    req(input$select_HOG_server)
+    req(input$baseMean_layer == TRUE)
+    
+    sliderInput(inputId = "tea_baseMean_pwidth_choice",
+                label = "basemn width",
                 value = 0.2,
                 min = 0.1,
                 step = 0.1,
@@ -1136,6 +1194,7 @@ server <- function(input, output, session) {
     )
   })
 
+  
 
   #MSA alignment - max value (width of alignment)
   output$tea_msa_width_options <- renderUI({
@@ -1351,12 +1410,12 @@ server <- function(input, output, session) {
       tree_dge <- info %>%
         filter(gene %in% tree$tip.label) %>%
       #  replace_na(list(log2FoldChange = 0)) %>%
-        dplyr::select(gene, log2FoldChange, significant)
+        dplyr::select(gene, baseMean, log2FoldChange, significant, species)
 
       tree_dge_only_sig <- info %>%
         filter(gene %in% tree$tip.label) %>%
         replace_na(list(log2FoldChange = 0)) %>%
-        dplyr::select(gene, log2FoldChange, significant) %>%
+        dplyr::select(gene, baseMean, log2FoldChange, significant, species) %>%
         filter(significant == "yes")
 
       #get max pos/neg log fold change - for automatic breaks in y-axis scale
@@ -1367,113 +1426,106 @@ server <- function(input, output, session) {
         pull(arr) %>% floor()
 
 
-      if (input$log2FC_layer == TRUE & input$tea_log2FC_add_sign_stars_choice == FALSE) {
-        req(input$log2FC_layer == TRUE)
-        req(input$tea_log2FC_add_sign_stars_choice == FALSE)
-        req(input$tea_log2FC_n_break_choice)
-        req(input$tea_log2FC_offset_choice)
-        req(input$tea_log2FC_pwidth_choice)
-        req(input$tea_log2FC_axis_text_choice)
-        req(input$tea_log2FC_vjust_choice)
-        req(input$tea_log2FC_linetype_choice)
+#       # new modularization of the plot. This is what geom_fruit is made for.
+      
+      # 0) Add the species names
+      p <- p + new_scale_fill() + 
+        geom_fruit(
+          data = tree_dge,
+          geom = geom_text,
+          mapping = aes(y = gene, label = species),
+          offset = -1,
+          pwidth = input$tea_log2FC_pwidth_choice,
+          size = 3.5,
+          color = "darkgrey",
+          inherit.aes = FALSE
+        )
 
-        p <- p +
-          new_scale_fill() +
-          geom_fruit(
-            data=tree_dge,
-            geom = geom_bar,
-            mapping = aes(
-              y=gene,
-              x=log2FoldChange
-            ),
-            orientation="y",
-            stat="identity",
-            fill="navy",
-            colour = "navy",
-            alpha=.7,
-            inherit.aes=FALSE,
-            offset = input$tea_log2FC_offset_choice,
-            pwidth = input$tea_log2FC_pwidth_choice,
-            axis.params =
-              list(
-                axis = "x",
-                text.size = !!input$tea_log2FC_axis_text_choice,
-                # nbreak - variable or function accepted here?
-                nbreak = !!input$tea_log2FC_n_break_choice, #input$nbreak_choice,
-                line.size = 0.5,
-                vjust = !!input$tea_log2FC_vjust_choice,
-                line.color = "black",
-                inherit.aes = FALSE,
-              ),
-            grid.params =
-              list(
-                size = 0.5,
-                linetype = !!input$tea_log2FC_linetype_choice
-              )
+      # 1) Track whether log2FC has been added, to align stars on it
+      log2fc_added <- FALSE
+      
+      # 2) Add log2FC layer (if selected)
+      if (isTRUE(input$log2FC_layer)) {
+        p <- p + new_scale_fill() + geom_fruit(
+          data = tree_dge,
+          geom = geom_bar,
+          mapping = aes(y = gene, x = log2FoldChange),
+          orientation = "y",
+          stat = "identity",
+          fill = "navy",
+          colour = "navy",
+          alpha = .8,
+          inherit.aes = FALSE,
+          offset = input$tea_log2FC_offset_choice,
+          pwidth = input$tea_log2FC_pwidth_choice,
+          axis.params = list(
+            axis = "x",
+            title = "log2FC",
+            text.size = !!input$tea_log2FC_axis_text_choice,
+            nbreak = !!input$tea_log2FC_n_break_choice,
+            line.size = 0.5,
+            vjust = !!input$tea_log2FC_vjust_choice,
+            line.color = "black"
+          ),
+          grid.params = list(
+            size = 0.5,
+            linetype = !!input$tea_log2FC_linetype_choice
           )
+        )
+        log2fc_added <- TRUE
+      }
+      
+      
+      # 3) Add stars if log2FC exists and user wants them
+      if (log2fc_added && isTRUE(input$tea_log2FC_add_sign_stars_choice)) {
+        p <- p + new_scale_fill() + geom_fruit(
+          data = tree_dge_only_sig,
+          geom = geom_star,
+          mapping = aes(y = gene, x = log2FoldChange, fill = significant),
+          offset = input$tea_log2FC_offset_choice,
+          size = 4,
+          color = "orange",
+          starstroke = 1
+        )
+      }
+      
+      # 4) Add baseMean layer using user-defined offset
+      if (isTRUE(input$baseMean_layer)) {
+        p <- p + new_scale_fill() + geom_fruit(
+          data = tree_dge,
+          geom = geom_bar,
+          mapping = aes(y = gene, x = baseMean),
+          orientation = "y",
+          stat = "identity",
+          fill = "darkgray",
+          colour = "darkgray",
+          alpha = .5,
+          inherit.aes = FALSE,
+          offset = input$tea_baseMean_offset_choice,
+          pwidth = input$tea_baseMean_pwidth_choice,
+          axis.params = list(
+            axis = "x",
+            title = "baseMean",
+            text.size = !!input$tea_log2FC_axis_text_choice,
+            text.angle = 90,
+            nbreak = !!input$tea_log2FC_n_break_choice,
+            line.size = 0.5,
+            vjust = !!input$tea_log2FC_vjust_choice,
+            line.color = "black"
+          ),
+          grid.params = list(
+            size = 0.5,
+            linetype = !!input$tea_log2FC_linetype_choice
+          )
+        )
       }
 
-      #log2FC layer + significance stars
-      if (input$log2FC_layer == TRUE & input$tea_log2FC_add_sign_stars_choice == TRUE) {
-        req(input$log2FC_layer == TRUE)
-        req(input$tea_log2FC_add_sign_stars_choice == TRUE)
-        req(input$tea_log2FC_n_break_choice)
-        req(input$tea_log2FC_offset_choice)
-        req(input$tea_log2FC_pwidth_choice)
-        req(input$tea_log2FC_axis_text_choice)
-        req(input$tea_log2FC_vjust_choice)
-        req(input$tea_log2FC_linetype_choice)
-
-        p <- p +
-          new_scale_fill() +
-          geom_fruit_list(
-            geom_fruit(
-              data=tree_dge,
-              geom = geom_bar,
-              mapping = aes(
-                y=gene,
-                x=log2FoldChange
-              ),
-              orientation="y",
-              stat="identity",
-              fill="navy",
-              colour = "navy",
-              alpha=.7,
-              inherit.aes=FALSE,
-              offset = input$tea_log2FC_offset_choice,
-              pwidth = input$tea_log2FC_pwidth_choice,
-              axis.params =
-                list(
-                  axis = "x",
-                  text.size = !!input$tea_log2FC_axis_text_choice,
-                  # nbreak - variable or function accepted here?
-                  nbreak = !!input$tea_log2FC_n_break_choice, #input$nbreak_choice,
-                  line.size = 0.5,
-                  vjust = !!input$tea_log2FC_vjust_choice,
-                  line.color = "black",
-                  inherit.aes = FALSE,
-                ),
-              grid.params =
-                list(
-                  size = 0.5, #color = "navy"
-                  linetype = !!input$tea_log2FC_linetype_choice
-                )
-            ),
-            new_scale_fill(), # To initialize fill scale.
-            geom_fruit(
-              data=tree_dge_only_sig,
-              geom = geom_star,
-              mapping = aes(y=gene, x=log2FoldChange, fill=significant),
-              offset = input$tea_log2FC_offset_choice,
-              size = 4,
-              color = "orange",
-              starstroke = 1
-            )
-          ) +
-          new_scale_fill() # To initialize fill scale.
-      }
-
-
+     
+      # 5) Reset scale
+      p <- p + new_scale_fill()
+      
+      
+      
       #adding a MSA layer
       if (input$msa_layer == TRUE) {
         req(input$msa_layer == TRUE)
@@ -1694,7 +1746,6 @@ server <- function(input, output, session) {
     #we can start with an table for the chosen hypothesis -> reduced to the conserved set of OGs!
     #this is then reduced to the set of interest based on the parameters
     if (!is.na(hypotheses_tsv()$hypothesis[hypotheses_tsv()$name==input$select_Hypothesis_server])) {
-
       int_set_df <- HOG_level_list()[[hypotheses_tsv()$hypothesis[hypotheses_tsv()$name==input$select_Hypothesis_server]]] %>% filter(HOG %in% conserved_OGs)
 
       #allow filtering of interesting set to only OGs that show expansion
@@ -1734,12 +1785,18 @@ server <- function(input, output, session) {
           dplyr::select(HOG, any_of(exp_species_total), any_of(exp_species_sigDE)) %>%
           filter_at(vars(c(ends_with("_sigDE"))), all_vars(. >= input$go_n_deg_choice))
       }
+      else if (input$go_deg_choice=="at least # DEGs in ANY species in experiment" & !is.na(input$go_n_deg_choice)) {
+        #need to subset from all_species_overview
+        int_set_df <- HOG_level_list()$all_species_overview %>% filter(HOG %in% conserved_OGs) %>%
+          filter(HOG %in% int_set_df$HOG) %>%
+          filter_at(vars(c(ends_with("_sigDE"))), any_vars(. >= input$go_n_deg_choice))
+      }
 
     }
 
     #extract names of OGs of interesting final set from int_set_df
     int_set <- int_set_df %>% pull(HOG)
-
+    
     #important to create true gene 2 GO mapping; GO column char vector!
     universe <- universe %>%
       strsplit(split = ", ")
@@ -1766,7 +1823,7 @@ server <- function(input, output, session) {
                        ranksOf = "classicFisher",
                        topNodes = input$go_top_n_nodes_choice,
                        numChar=1000)
-    allRes <- allRes[allRes$Significant>input$go_sig_filter_choice,]
+    allRes <- allRes[allRes$Significant>=input$go_sig_filter_choice,]
 
     #store results in output list - no need to get fancy with S4 here
     A2TEA_GO_list <- list("int_set_df" = int_set_df,
@@ -2233,6 +2290,9 @@ server <- function(input, output, session) {
 
     ### conserved OGs based on ALL species sets but hypothesis filter - Caro's wish 2023
     #simply take hypothesis sets and reduce by conserved OGs (which are from all species in A2TEA run)
+    
+    # 2025: But there is a problem when selecting DEG from ANY species in experiment (not only hypothesis)
+    # we need the info on the DE from non-hypothesis species here. See below: #at least # DEGs in any species IN EXPERIMENT
 
     #conserved OGs of all species + hypothesis EXPANSION
     hyper_ALL_conserved_OGs_hypothesis_expansion <-
@@ -2256,6 +2316,12 @@ server <- function(input, output, session) {
     hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species <-
       hyper_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species %>%
       filter(HOG %in% hyper_conserved_OGs$HOG)
+    
+    #at least # DEGs in any species IN EXPERIMENT
+    hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species_in_EXPERIMENT <-
+      hyper_ALL_conserved_OGs_hypothesis_expansion[hyper_ALL_conserved_OGs_hypothesis_expansion$HOG %in% hyper_conserved_OGs_N_DEGs_ANY_species$HOG,] %>%
+      filter(HOG %in% hyper_conserved_OGs$HOG)
+    
     #at_least_N_all
     hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_species <-
       hyper_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_species %>%
@@ -2278,6 +2344,7 @@ server <- function(input, output, session) {
       "conserved OGs; # DEGs from ALL species" = nrow(hyper_conserved_OGs_N_DEGs_ALL_species),
       #conserved OGs based on ALL species sets but hypothesis filter
       "conserved OGs; hypothesis; EXPANDED" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion),
+      "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species_in_EXPERIMENT),
       "conserved OGs; hypothesis; # DEGs from ANY species" = nrow(hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ANY_species),
       "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species" = nrow(hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ANY_EXPANDED_species),
       "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species" = nrow(hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ALL_EXPANDED_species),
@@ -2312,14 +2379,15 @@ server <- function(input, output, session) {
       "conserved OGs; # DEGs from ANY species" = hyper_conserved_OGs_N_DEGs_ANY_species,
       "conserved OGs; # DEGs from ALL species" = hyper_conserved_OGs_N_DEGs_ALL_species,
       #conserved OGs based on ALL species sets but hypothesis filter
-      "conserved OGs; hypothesis; EXPANDED" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion),
-      "conserved OGs; hypothesis; # DEGs from ANY species" = nrow(hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ANY_species),
-      "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species" = nrow(hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ANY_EXPANDED_species),
-      "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species" = nrow(hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ALL_EXPANDED_species),
-      "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species),
-      "conserved OGs; hypothesis; EXPANDED; # DEGs from ALL species" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_species),
-      "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY EXPANDED species" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_EXPANDED_species),
-      "conserved OGs; hypothesis; EXPANDED; # DEGs from ALL EXPANDED species" = nrow(hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_EXPANDED_species),
+      "conserved OGs; hypothesis; EXPANDED" = hyper_ALL_conserved_OGs_hypothesis_expansion,
+      "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species in experiment"= hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species_in_EXPERIMENT,
+      "conserved OGs; hypothesis; # DEGs from ANY species" = hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ANY_species,
+      "conserved OGs; hypothesis; # DEGs from ANY EXPANDED species" = hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ANY_EXPANDED_species,
+      "conserved OGs; hypothesis; # DEGs from ALL EXPANDED species" = hyper_ALL_conserved_OGs_hypothesis_N_DEGs_ALL_EXPANDED_species,
+      "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY species" = hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_species,
+      "conserved OGs; hypothesis; EXPANDED; # DEGs from ALL species" = hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_species,
+      "conserved OGs; hypothesis; EXPANDED; # DEGs from ANY EXPANDED species" = hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ANY_EXPANDED_species,
+      "conserved OGs; hypothesis; EXPANDED; # DEGs from ALL EXPANDED species" = hyper_ALL_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_EXPANDED_species,
       #hypothesis specific but not strictly conserved
       "hypothesis; all OGs; EXPANDED" = hyper_all_OGs_hypothesis_expansion,
       "hypothesis; all OGs; # DEGs from ANY species" = hyper_all_OGs_hypothesis_N_DEGs_ANY_species,
@@ -2339,7 +2407,7 @@ server <- function(input, output, session) {
       "hypothesis; conserved OGs; EXPANDED; # DEGs from ALL EXPANDED species" = hyper_conserved_OGs_hypothesis_expansion_N_DEGs_ALL_EXPANDED_species
     )
 
-    #return a list with [1] being the num of rows and [2] being the  dfs themselves
+    #return a list with [1] being the num of rows and [2] being the dfs themselves
     set_fun <- list(
       "set_fun_nrows" = set_fun_nrows,
       "set_fun_dfs" = set_fun_dfs
